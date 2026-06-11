@@ -126,24 +126,36 @@ class System:
         X_prev = self.X  # for damping term in constraints
 
         if solver == "jacobi":
-            for _ in range(iters):
-                for group in self.constraints:
-                    dP, d_lam = group.project_batch(P, self.W, X_prev, dt)
-                    P += dP
-                    group.lam += d_lam
-                if coll.idx.shape[0] > 0:
-                    dP, _ = coll.project_batch(P, self.W, X_prev, dt)
-                    P += dP
-        else:  # gauss-seidel
+            # Jacobi: within each constraint group, all constraints in a
+            # vertex-disjoint color class are solved in parallel (one
+            # np call), then P is updated before the next color class.
+            # Between groups, processing is sequential. This is the same
+            # as the "GPU Jacobi" approach in the paper — parallelism
+            # within color classes, sequential across them.
             for _ in range(iters):
                 for group in self.constraints:
                     for c in range(group.n_colors):
-                        dP, d_lam = group.project_color(P, self.W, X_prev, dt, c)
+                        dP, d_lam = group.project_color(
+                            P, self.W, X_prev, dt, c)
                         P += dP
                         group.lam += d_lam
                 if coll.idx.shape[0] > 0:
                     for c in range(coll.n_colors):
-                        dP, _ = coll.project_color(P, self.W, X_prev, dt, c)
+                        dP, _ = coll.project_color(
+                            P, self.W, X_prev, dt, c)
+                        P += dP
+        else:  # gauss-seidel
+            for _ in range(iters):
+                for group in self.constraints:
+                    for c in range(group.n_colors):
+                        dP, d_lam = group.project_color(
+                            P, self.W, X_prev, dt, c)
+                        P += dP
+                        group.lam += d_lam
+                if coll.idx.shape[0] > 0:
+                    for c in range(coll.n_colors):
+                        dP, _ = coll.project_color(
+                            P, self.W, X_prev, dt, c)
                         P += dP
 
         # (7) Update velocity from positional change

@@ -33,9 +33,9 @@ def test_chain_support_force():
     stretch = Stretch(edges, rest, compliance=compliance)
     sys.add_constraint(stretch)
 
-    # Run until settled
+    # Run until settled (Gauss-Seidel for accurate force estimates)
     for _ in range(300):
-        sys.step(dt=dt, iters=iters)
+        sys.step(dt=dt, iters=iters, solver="gauss-seidel")
 
     # Force at the top constraint (index 0): should support (N-1) particles
     # λ / Δt² gives the constraint force
